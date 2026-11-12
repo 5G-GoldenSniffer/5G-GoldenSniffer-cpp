@@ -1,8 +1,6 @@
 # 5G-GoldenSniffer-cpp
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Docs](https://img.shields.io/badge/docs-online-informational)](https://5g-goldensniffer.github.io/5G-GoldenSniffer-cpp/)
-[![Report](https://img.shields.io/badge/technical%20report-PDF-red)](report/report.pdf)
 
 A real-time passive 5G NR downlink control channel sniffer for Ettus USRP software-defined radios.
 
