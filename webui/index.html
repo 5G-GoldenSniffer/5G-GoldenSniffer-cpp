@@ -1,0 +1,957 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NR Cell Scanner</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --surface-2: #f0efec;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11,11,11,0.10);
+  --s1: #2a78d6;  /* DL / single series */
+  --s2: #eb6834;  /* UL */
+  --s3: #1baf7a;
+  --s4: #eda100;
+  --s5: #e87ba4;
+  --s6: #008300;
+  --s7: #4a3aa7;
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --good-text: #006300;
+  --crit-text: #b02a2a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --surface-2: #232321;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255,255,255,0.10);
+    --s1: #3987e5;
+    --s2: #d95926;
+    --s3: #199e70;
+    --s4: #c98500;
+    --s5: #d55181;
+    --s6: #008300;
+    --s7: #9085e9;
+    --good-text: #0ca30c;
+    --crit-text: #e66767;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --surface: #1a1a19;
+  --surface-2: #232321;
+  --ink: #ffffff;
+  --ink-2: #c3c2b7;
+  --muted: #898781;
+  --grid: #2c2c2a;
+  --axis: #383835;
+  --border: rgba(255,255,255,0.10);
+  --s1: #3987e5;
+  --s2: #d95926;
+  --s3: #199e70;
+  --s4: #c98500;
+  --s5: #d55181;
+  --s6: #008300;
+  --s7: #9085e9;
+  --good-text: #0ca30c;
+  --crit-text: #e66767;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { min-width: 1280px; }
+body {
+  background: var(--page);
+  color: var(--ink);
+  font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.wrap { padding: 12px 24px 12px; }
+
+header.top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-bottom: 12px; }
+header.top h1 { font-size: 18px; font-weight: 600; margin: 0; }
+.meta { color: var(--ink-2); font-size: 13px; min-width: 0; overflow-wrap: anywhere; }
+.spacer { flex: 1; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
+        border: 1px solid var(--border); background: var(--surface); font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: var(--surface); }
+.seg button, .btn { font: inherit; font-size: 12px; color: var(--ink-2); background: transparent; border: 0;
+                    padding: 4px 10px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button[aria-pressed="true"] { background: var(--surface-2); color: var(--ink); font-weight: 600; }
+.btn { border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
+.btn:hover, .seg button:hover { color: var(--ink); }
+button:focus-visible, input:focus-visible, th:focus-visible { outline: 2px solid var(--s1); outline-offset: 1px; }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-bottom: 8px; }
+.tile, .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+.tile { padding: 10px 12px; min-width: 0; }
+.tile .label { font-size: 12px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile .value { font-size: 22px; font-weight: 600; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile .value small { font-size: 13px; font-weight: 400; color: var(--ink-2); margin-left: 3px; }
+.tile .sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile.state .value { display: flex; align-items: center; gap: 8px; }
+.tile.state .dot { width: 12px; height: 12px; }
+
+.legend-row { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--ink-2); margin: 12px 2px 6px; align-items: center; }
+.key { display: inline-flex; align-items: center; gap: 5px; }
+.key i { display: inline-block; width: 2px; height: 12px; }
+
+.charts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;
+          grid-template-areas: "tput tput dci" "tput tput rnti" "cpu cfo sfo"; }
+.charts.no-tput { grid-template-areas: "dci rnti cpu" "cfo sfo ."; }
+.panel { padding: 10px 12px 6px; min-width: 0; display: flex; flex-direction: column; }
+.charts .panel .chart { flex: 1; min-height: 180px; }
+.panel h2 .seg { font-weight: 400; margin-left: 8px; }
+.panel h2 .seg button { padding: 1px 8px; }
+.panel h2 { font-size: 13px; font-weight: 600; margin: 0; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.panel h2 .unit { font-weight: 400; color: var(--muted); }
+.panel h2 .keys { font-weight: 400; color: var(--ink-2); display: inline-flex; gap: 12px; margin-left: auto; }
+.panel h2 .keys .key i { width: 12px; height: 2px; border-radius: 1px; }
+.chart { position: relative; height: 180px; margin-top: 4px; }
+.chart canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.panel.hidden { display: none; }
+
+#tip { position: fixed; pointer-events: none; z-index: 10; background: var(--surface); color: var(--ink);
+       border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 12px;
+       box-shadow: 0 4px 16px rgba(0,0,0,0.18); display: none; min-width: 120px; }
+#tip .t { color: var(--muted); margin-bottom: 2px; font-variant-numeric: tabular-nums; }
+#tip .row { display: flex; align-items: center; gap: 6px; }
+#tip .row i { width: 10px; height: 2px; border-radius: 1px; flex: none; }
+#tip .row b { font-weight: 600; font-variant-numeric: tabular-nums; }
+#tip .row span { color: var(--ink-2); }
+#tip .ev { color: var(--ink-2); margin-top: 3px; }
+
+.main { display: grid; grid-template-columns: 440px minmax(0, 1fr); gap: 8px; align-items: start; }
+.side { position: sticky; top: 8px; max-height: calc(100vh - 63px);  /* header (51px) + bottom padding */ display: flex; flex-direction: column; gap: 8px; }
+.side .rntis { flex: 1; min-height: 0; }
+.side .tablewrap { flex: 1; min-height: 120px; max-height: none; }
+.side table { font-size: 12px; }
+.side th, .side td { padding: 4px 6px; }
+.side td.wrap { white-space: normal; }
+.side tr.stale td { color: var(--muted); }
+.side .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; vertical-align: 0; }
+.side .events { flex: none; }
+.panel .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 2px 0 8px; }
+.panel .bar input { font: inherit; font-size: 12px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border);
+                    background: var(--page); color: var(--ink); width: 160px; }
+.panel .bar .count { font-size: 12px; color: var(--muted); margin-left: auto; }
+.tablewrap { overflow: auto; max-height: 480px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: right; padding: 5px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th { position: sticky; top: 0; background: var(--surface); color: var(--ink-2); font-weight: 600; font-size: 12px;
+     cursor: pointer; user-select: none; }
+th[aria-sort="ascending"]::after { content: " \25B2"; font-size: 9px; }
+th[aria-sort="descending"]::after { content: " \25BC"; font-size: 9px; }
+td { font-variant-numeric: tabular-nums; }
+th:first-child, td:first-child, th.l, td.l { text-align: left; }
+td.mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; }
+tbody tr:hover { background: var(--surface-2); }
+.tag { font-size: 11px; color: var(--ink-2); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; margin-left: 6px; }
+.empty { color: var(--muted); padding: 16px 8px; text-align: center; }
+
+#events { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow: auto; font-size: 12px; }
+#events li { display: flex; gap: 8px; align-items: baseline; padding: 4px 0; border-bottom: 1px solid var(--grid); }
+#events li .t { color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+#events li .dot { align-self: center; }
+
+.images { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; align-items: start; }
+.images .pick { display: flex; align-items: center; justify-content: center; min-height: 120px; }
+.images input, .images .pick[hidden], .images img[hidden] { display: none; }
+.images img { display: block; width: 100%; height: auto; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>NR cell scanner</h1>
+    <span class="meta" id="meta">waiting for data…</span>
+    <span class="spacer"></span>
+    <span class="pill" id="conn"><span class="dot"></span><span>connecting</span></span>
+    <div class="controls">
+      <div class="seg" id="range" role="group" aria-label="Time range">
+        <button data-s="60">1 m</button><button data-s="300" aria-pressed="true">5 m</button><button data-s="900">15 m</button><button data-s="3600">1 h</button>
+      </div>
+      <button class="btn" id="pause" aria-pressed="false">Pause</button>
+      <button class="btn" id="theme" title="Toggle light/dark">Theme</button>
+    </div>
+  </header>
+
+  <div class="main">
+  <div class="side">
+  <aside class="panel rntis">
+    <h2>RNTIs <span class="unit" id="rnti-scope"></span></h2>
+    <div class="bar">
+      <div class="seg" id="rnti-mode" role="group" aria-label="RNTI list scope">
+        <button data-m="active" aria-pressed="true">Active (10 s)</button><button data-m="range">Time range</button>
+      </div>
+      <input id="rnti-filter" type="search" placeholder="Filter RNTI / srcID" aria-label="Filter RNTIs">
+      <span class="count" id="rnti-count"></span>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr id="rnti-head"></tr></thead>
+        <tbody id="rnti-body"></tbody>
+      </table>
+    </div>
+  </aside>
+  <section class="panel events">
+    <h2>Events</h2>
+    <ul id="events"></ul>
+  </section>
+  </div>
+  <div>
+  <section class="tiles" id="tiles" aria-label="Current status"></section>
+
+  <div class="legend-row" aria-label="Chart markers">
+    <span>Markers:</span>
+    <span class="key"><i style="background:var(--good)"></i>cell acquired</span>
+    <span class="key"><i style="background:var(--critical)"></i>tracking lost</span>
+    <span class="key"><i style="background:var(--warning)"></i>RX overflow</span>
+    <span class="spacer"></span>
+    <span id="clock" style="color:var(--muted)"></span>
+  </div>
+
+  <section class="charts" id="charts"></section>
+  <section class="images" id="images" aria-label="User images">
+    <div class="slot" data-default="a.png"><label class="panel pick"><span class="btn">Choose image…</span><input type="file" accept="image/*"></label></div>
+    <div class="slot" data-default="b.png"><label class="panel pick"><span class="btn">Choose image…</span><input type="file" accept="image/*"></label></div>
+    <div class="slot" data-default="c.png"><label class="panel pick"><span class="btn">Choose image…</span><input type="file" accept="image/*"></label></div>
+  </section>
+  </div>
+  </div>
+</div>
+<div id="tip" role="tooltip"></div>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------- data store
+const MAX_POINTS = 86400;          // one day of seconds in the browser
+const GAP_MS = 2500;               // a missing second breaks the line
+let data = [];                     // datagrams, sorted by t
+let events = [];                   // {t, kind, text}
+let rangeS = 300, paused = false, frozenEnd = null, lastRecv = 0;
+let hoverT = null;
+let lastCfg = null;
+
+const $ = (id) => document.getElementById(id);
+const hex4 = (n) => "0x" + n.toString(16).padStart(4, "0");
+const rntiName = (r) => r === 0xffff ? "SI-RNTI" : r === 0xfffe ? "P-RNTI" : "";
+const fmtTime = (t) => new Date(t).toLocaleTimeString([], {hour12: false});
+function fmtBps(b) {
+  if (b == null) return "–";
+  if (b >= 1e9) return (b/1e9).toFixed(2) + " Gbit/s";
+  if (b >= 1e6) return (b/1e6).toFixed(2) + " Mbit/s";
+  if (b >= 1e3) return (b/1e3).toFixed(1) + " kbit/s";
+  return b.toFixed(0) + " bit/s";
+}
+function compact(n) {
+  if (n == null || !isFinite(n)) return "–";
+  const a = Math.abs(n);
+  if (a >= 1e9) return (n/1e9).toFixed(1).replace(/\.0$/, "") + "G";
+  if (a >= 1e6) return (n/1e6).toFixed(1).replace(/\.0$/, "") + "M";
+  if (a >= 1e4) return (n/1e3).toFixed(1).replace(/\.0$/, "") + "k";
+  return n.toLocaleString(undefined, {maximumFractionDigits: 2});
+}
+
+// derived per-second values used by tiles and charts
+function derive(m) {
+  const rx = m.rx || {};
+  const T = m.frames * 0.01;
+  return {
+    snr: rx.snr_db ?? null,
+    sfo: rx.sfo_ppm ?? null,
+    cfo_ppm: rx.cfo_hz != null && m.cfg && m.cfg.freq_rx_hz ? rx.cfo_hz / m.cfg.freq_rx_hz * 1e6 : null,
+    gain: rx.gain_db ?? null,
+    cpu_sys: m.cpu ? m.cpu.system : null,
+    cpu_proc: m.cpu ? m.cpu.process : null,
+    cpu_max: m.cpu && m.cpu.cores.length ? Math.max(...m.cpu.cores) : null,
+    dl: T > 0 ? m.dci.dl / T : null,                 // DCIs per second of processed frames
+    ul: T > 0 ? m.dci.ul / T : null,
+    tdl: m.throughput ? m.throughput.dl_bps : null,
+    tul: m.throughput ? m.throughput.ul_bps : null,
+    rntis: m.frames ? m.rnti_count : null,
+  };
+}
+
+function ingest(m, live) {
+  if (!m || typeof m.t !== "number") return;
+  m.d = derive(m);
+  m.rmap = new Map(m.rntis.map((r) => [r.rnti, r]));
+  const cfgS = JSON.stringify(m.cfg);
+  if (lastCfg !== null && (cfgS !== lastCfg || (data.length && m.sec < data[data.length-1].sec)))
+    addEvent(m.t, "info", "new run: " + describeCfg(m.cfg));
+  lastCfg = cfgS;
+  const prev = data.length ? data[data.length-1] : null;
+  if (prev && m.t <= prev.t) {          // out of order or duplicate (history + live overlap)
+    const i = data.findIndex((x) => x.t >= m.t);
+    if (data[i].t === m.t) return;
+    data.splice(i, 0, m);
+  } else data.push(m);
+  if (data.length > MAX_POINTS) data.splice(0, data.length - MAX_POINTS);
+
+  const rx = m.rx;
+  if (rx) {
+    if (rx.acquisitions) addEvent(m.t, "good", `cell acquired: PCI ${rx.pci ?? "?"}`);
+    if (rx.track_losses) addEvent(m.t, "critical", `tracking lost` + (rx.track_losses > 1 ? ` ×${rx.track_losses}` : ""));
+    if (rx.acq_failures) addEvent(m.t, "serious", `acquisition failed, adjusting the RX gain`);
+    if (rx.overflows) addEvent(m.t, "warning", `${rx.overflows} RX overflow${rx.overflows > 1 ? "s" : ""}`);
+    if (prev && prev.rx && prev.rx.state !== rx.state && !rx.acquisitions && !rx.track_losses && !rx.acq_failures)
+      addEvent(m.t, rx.state === "TRACK" ? "good" : "serious", `state ${prev.rx.state} → ${rx.state}`);
+  }
+  if (m.partial) addEvent(m.t, "info", "end of stream");
+  if (m.rntis_truncated) m.d.truncated = true;
+  if (live) lastRecv = Date.now();
+}
+
+function addEvent(t, kind, text) {
+  events.push({t, kind, text});
+  if (events.length > 500) events.shift();
+  eventsDirty = true;
+}
+
+function describeCfg(c) {
+  if (!c) return "";
+  const src = c.file ? c.source.split("/").pop() : c.source;
+  return `${src} · ${(c.freq_rx_hz/1e6).toFixed(3)} MHz · ${c.bandwidth_hz/1e6} MHz BW · ${c.scs_hz/1e3} kHz SCS · ${c.n_rb} RB` +
+         (c.fallback_bwp ? ` · fallback BWP ${c.fallback_bwp} RB` : "");
+}
+
+// ---------------------------------------------------------------- theme
+const css = {};
+function readColors() {
+  const s = getComputedStyle(document.documentElement);
+  for (const k of ["surface","ink","ink-2","muted","grid","axis","s1","s2","s3","s4","s5","s6","s7","good","warning","serious","critical"])
+    css[k] = s.getPropertyValue("--" + k).trim();
+}
+function currentDark() {
+  const a = document.documentElement.dataset.theme;
+  return a ? a === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+}
+$("theme").onclick = () => {
+  const next = currentDark() ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem("nr-theme", next); } catch (e) {}
+  readColors(); scheduleRender();
+};
+try { const t = localStorage.getItem("nr-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { readColors(); scheduleRender(); });
+readColors();
+
+// ---------------------------------------------------------------- tiles
+const tiles = [
+  {id: "state", label: "Receiver", cls: "state"},
+  {id: "pci",   label: "PCI"},
+  {id: "snr",   label: "SSB SNR"},
+  {id: "cfo",   label: "CFO"},
+  {id: "sfo",   label: "SFO"},
+  {id: "dci",   label: "DCIs / s"},
+  {id: "rnti",  label: "Active RNTIs"},
+  {id: "tdl",   label: "DL throughput", opt: "tput"},
+  {id: "tul",   label: "UL throughput", opt: "tput"},
+  {id: "gain",  label: "RX gain", opt: "gain"},
+  {id: "cpu",   label: "CPU load", opt: "cpu"},
+];
+for (const t of tiles) {
+  const el = document.createElement("div");
+  el.className = "tile " + (t.cls || "");
+  el.id = "tile-" + t.id;
+  el.innerHTML = `<div class="label"></div><div class="value"></div><div class="sub"></div>`;
+  el.querySelector(".label").textContent = t.label;
+  if (t.opt) el.hidden = true;
+  $("tiles").appendChild(el);
+}
+function setTile(id, value, unit, sub) {
+  const el = $("tile-" + id);
+  const v = el.querySelector(".value");
+  v.textContent = value;
+  if (unit) { const s = document.createElement("small"); s.textContent = unit; v.appendChild(s); }
+  el.querySelector(".sub").textContent = sub || " ";
+}
+const stateColor = {TRACK: "good", ACQUIRE: "warning", AGC: "serious"};
+
+function renderTiles() {
+  const m = data.length ? data[data.length-1] : null;
+  const stale = !m || Date.now() - lastRecv > 3000;
+  const st = $("tile-state");
+  st.querySelector(".value").innerHTML = "";
+  const dot = document.createElement("span"); dot.className = "dot";
+  const lbl = document.createElement("span");
+  let sub = "";
+  if (!m) { lbl.textContent = "No data"; dot.style.background = css.muted; }
+  else {
+    const s = m.rx ? m.rx.state : "?";
+    lbl.textContent = stale && !paused ? (m.partial ? "Ended" : "Stale") : s;
+    dot.style.background = stale && !paused ? css.muted : css[stateColor[s] || "muted"];
+    sub = s === "TRACK" ? "tracking the cell" : s === "ACQUIRE" ? "searching for a cell" : s === "AGC" ? "adjusting RX gain" : "";
+    if (stale && !paused) sub = "last update " + fmtTime(m.t);
+  }
+  st.querySelector(".value").append(dot, lbl);
+  st.querySelector(".sub").textContent = sub || " ";
+  if (!m) return;
+
+  const rx = m.rx || {}, d = m.d;
+  const track = rx.state === "TRACK";
+  setTile("pci", track ? String(rx.pci) : "–", "", track && rx.f_ssb_hz ? `SSB ${(rx.f_ssb_hz/1e6).toFixed(3)} MHz` : "");
+  setTile("snr", d.snr != null ? d.snr.toFixed(1) : "–", d.snr != null ? "dB" : "", m.rx ? `SSB in ${rx.ssb_found}/${rx.ssb_found + rx.ssb_missed} frames` : "");
+  setTile("cfo", d.cfo_ppm != null ? (d.cfo_ppm >= 0 ? "+" : "") + d.cfo_ppm.toFixed(2) : "–", d.cfo_ppm != null ? "ppm" : "");
+  setTile("sfo", d.sfo != null ? (d.sfo >= 0 ? "+" : "") + d.sfo.toFixed(2) : "–", d.sfo != null ? "ppm" : "");
+  setTile("dci", compact(m.dci.dl + m.dci.ul), "", `DL ${m.dci.dl} · UL ${m.dci.ul}`);
+  setTile("rnti", String(m.rnti_count), "", m.rntis_truncated ? "list truncated" : `${m.frames} frames`);
+  const tput = !!m.throughput;
+  $("tile-tdl").hidden = $("tile-tul").hidden = !tput;
+  if (tput) {
+    const [dv, du] = fmtBps(m.throughput.dl_bps).split(" "), [uv, uu] = fmtBps(m.throughput.ul_bps).split(" ");
+    setTile("tdl", dv, du, "fallback DCIs, RV 0");
+    setTile("tul", uv, uu, "fallback DCIs, RV 0");
+  }
+  $("tile-gain").hidden = rx.gain_db == null;
+  if (rx.gain_db != null) setTile("gain", rx.gain_db.toFixed(1), "dB");
+  $("tile-cpu").hidden = d.cpu_sys == null;
+  if (d.cpu_sys != null) setTile("cpu", d.cpu_sys.toFixed(0), "%", `scanner ${d.cpu_proc.toFixed(0)}% · max ${d.cpu_max.toFixed(0)}%`);
+}
+
+// ---------------------------------------------------------------- charts
+const chartDefs = [
+  {id: "tput",  title: "Throughput (fallback DCIs)", unit: "bit/s", series: [{k: "tdl", label: "DL", c: "s1"}, {k: "tul", label: "UL", c: "s2"}], fmt: fmtBps, y0: 0, opt: true,
+   modes: [["total", "Total"], ["dl", "Per RNTI · DL"], ["ul", "Per RNTI · UL"]]},
+  {id: "dci",   title: "DCIs", unit: "per second", tu: "/s", series: [{k: "dl", label: "DL", c: "s1"}, {k: "ul", label: "UL", c: "s2"}], dec: 0, y0: 0},
+  {id: "rnti",  title: "Active RNTIs", unit: "per second", tu: "", series: [{k: "rntis", label: "RNTIs", c: "s1"}], dec: 0, y0: 0},
+  {id: "cpu",   title: "CPU load", unit: "% of all cores", tu: "%", series: [{k: "cpu_sys", label: "system", c: "s1"}, {k: "cpu_proc", label: "scanner", c: "s2"},
+                                                              {k: "cpu_max", label: "busiest core", c: "s3"}], dec: 0, y0: 0, y1: 100, pct: true},
+  {id: "cfo",   title: "Carrier frequency offset", unit: "ppm", series: [{k: "cfo_ppm", label: "CFO", c: "s1"}], dec: 3, minSpan: 0.02},
+  {id: "sfo",   title: "Sampling frequency offset", unit: "ppm", series: [{k: "sfo", label: "SFO", c: "s1"}], dec: 3, minSpan: 0.02},
+];
+
+function makeChart(def) {
+  const panel = document.createElement("div");
+  panel.className = "panel" + (def.opt ? " hidden" : "");
+  const h = document.createElement("h2");
+  h.textContent = def.title + " ";
+  const u = document.createElement("span"); u.className = "unit"; u.textContent = def.unit; h.appendChild(u);
+  if (def.modes) {
+    const seg = document.createElement("span"); seg.className = "seg"; seg.setAttribute("role", "group");
+    seg.setAttribute("aria-label", def.title + " view");
+    for (const [m, label] of def.modes) {
+      const b = document.createElement("button"); b.textContent = label;
+      b.setAttribute("aria-pressed", m === tputMode);
+      b.onclick = () => {
+        tputMode = m; rntiSlot.clear();
+        seg.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+        scheduleRender();
+      };
+      seg.appendChild(b);
+    }
+    h.appendChild(seg);
+  }
+  const keys = document.createElement("span"); keys.className = "keys"; h.appendChild(keys);
+  const box = document.createElement("div"); box.className = "chart";
+  const cv = document.createElement("canvas");
+  cv.setAttribute("role", "img"); cv.setAttribute("aria-label", def.title + " over time");
+  box.appendChild(cv); panel.append(h, box); $("charts").appendChild(panel);
+  const ch = {def, panel, box, cv, h, plot: null, series: staticSeries(def), keysSig: ""};
+  panel.style.gridArea = def.id;
+  box.addEventListener("pointermove", (e) => onHover(ch, e));
+  box.addEventListener("pointerleave", () => { hoverT = null; $("tip").style.display = "none"; scheduleRender(); });
+  new ResizeObserver(scheduleRender).observe(box);
+  return ch;
+}
+
+function staticSeries(def) {
+  return def.series.map((s) => ({label: s.label, c: s.c, get: (m) => m.d[s.k]}));
+}
+
+// legend / tooltip swatch of a series: solid or dashed line
+function swatch(el, s) {
+  el.style.background = s.dash ? `repeating-linear-gradient(90deg, var(--${s.c}) 0 4px, transparent 4px 6px)` : `var(--${s.c})`;
+}
+
+// legend in the panel header, rebuilt only when the series change
+function setKeys(ch) {
+  const sig = ch.series.map((s) => s.c + s.label + !!s.dash).join("|");
+  if (sig === ch.keysSig) return;
+  ch.keysSig = sig;
+  const keys = ch.h.querySelector(".keys"); keys.replaceChildren();
+  if (ch.series.length < 2) return;
+  for (const s of ch.series) {
+    const k = document.createElement("span"); k.className = "key";
+    const i = document.createElement("i"); swatch(i, s);
+    k.append(i, document.createTextNode(s.label)); keys.appendChild(k);
+  }
+}
+
+// per-RNTI throughput: the 5 RNTIs with the most bits in the visible range, the rest as "other",
+// plus the DL and UL aggregates, dashed, in their colors of the total view (s1/s2, so the RNTIs use s3..s7).
+// An RNTI keeps its color slot while it stays in the top 5 (color follows the entity, not the rank).
+const TOP_RNTIS = 5;
+let tputMode = "total";
+const rntiSlot = new Map();
+function perRntiSeries(i0, i1, dir) {
+  const key = dir + "_bps";
+  const tot = new Map();
+  for (let i = i0; i < i1; i++)
+    for (const r of data[i].rntis) if (r[key]) tot.set(r.rnti, (tot.get(r.rnti) || 0) + r[key]);
+  const top = [...tot].sort((a, b) => b[1] - a[1] || a[0] - b[0]).slice(0, TOP_RNTIS).map((x) => x[0]);
+  for (const r of [...rntiSlot.keys()]) if (!top.includes(r)) rntiSlot.delete(r);
+  const used = new Set(rntiSlot.values());
+  for (const r of top) if (!rntiSlot.has(r)) {
+    let s = 0; while (used.has(s)) s++;
+    rntiSlot.set(r, s); used.add(s);
+  }
+  const series = top.map((r) => ({
+    label: hex4(r) + (rntiName(r) ? " " + rntiName(r) : ""), c: "s" + (rntiSlot.get(r) + 3), slot: rntiSlot.get(r),
+    get: (m) => m.throughput ? (m.rmap.get(r)?.[key] ?? 0) : null,
+  })).sort((a, b) => a.slot - b.slot);
+  if (tot.size > top.length) series.push({
+    label: `other ${tot.size - top.length} RNTIs`, c: "muted",
+    get: (m) => {
+      if (!m.throughput) return null;
+      let s = m.throughput[key];   // total minus the top RNTIs: right even with a truncated RNTI list
+      for (const r of top) s -= m.rmap.get(r)?.[key] ?? 0;
+      return Math.max(0, s);
+    },
+  });
+  const agg = staticSeries(chartDefs.find((d) => d.id === "tput")).map((s) => ({...s, label: s.label + " total", agg: true, dash: true}));
+  return [...agg, ...series];
+}
+
+const charts = chartDefs.map(makeChart);
+
+function niceTicks(lo, hi, n) {
+  if (!(hi > lo)) { const p = Math.abs(lo) * 0.1 || 1; lo -= p; hi += p; }
+  const raw = (hi - lo) / n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map((f) => f * mag).find((s) => s >= raw);
+  const t0 = Math.floor(lo / step) * step, t1 = Math.ceil(hi / step) * step;
+  const ticks = [];
+  for (let v = t0; v <= t1 + step * 1e-9; v += step) ticks.push(+v.toPrecision(12));
+  return {lo: t0, hi: t1, ticks, step};
+}
+
+function lowerBound(t) {           // first index with data[i].t >= t
+  let a = 0, b = data.length;
+  while (a < b) { const m = (a + b) >> 1; if (data[m].t < t) a = m + 1; else b = m; }
+  return a;
+}
+
+function viewWindow() {
+  const end = paused && frozenEnd ? frozenEnd : (data.length ? data[data.length-1].t + 1000 : Date.now());
+  return [end - rangeS * 1000, end];
+}
+
+function fmtTick(def, v, step) {
+  if (def.fmt === fmtBps) return compact(v);
+  const dec = step < 1 ? Math.min(3, Math.ceil(-Math.log10(step))) : 0;
+  return v.toFixed(dec);
+}
+
+function drawChart(ch, x0, x1, i0, i1) {
+  const {def, cv, box} = ch;
+  const W = box.clientWidth, H = box.clientHeight, dpr = devicePixelRatio || 1;
+  if (!W || !H) return;
+  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) {
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  }
+  const g = cv.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, W, H);
+  g.font = "11px system-ui, -apple-system, 'Segoe UI', sans-serif";
+
+  // y range over the visible points
+  let lo = Infinity, hi = -Infinity, cur = null;
+  const series = ch.series;
+  for (let i = i0; i < i1; i++) for (const s of series) {
+    const v = s.get(data[i]);
+    if (v != null && isFinite(v)) { if (v < lo) lo = v; if (v > hi) hi = v; cur = v; }
+  }
+  // flat series: ±minSpan/2 around the current value, so tiny jitter is not blown up to full height
+  if (def.minSpan && cur != null && hi - lo < def.minSpan) {
+    lo = Math.min(lo, cur - def.minSpan / 2); hi = Math.max(hi, cur + def.minSpan / 2);
+  }
+  if (lo === Infinity) { lo = def.y0 ?? 0; hi = def.y1 ?? 1; }
+  if (def.y0 != null) lo = Math.min(lo, def.y0);
+  if (def.y1 != null) hi = Math.max(hi, def.y1);
+  const nt = niceTicks(lo, hi, H < 150 ? 3 : 4);
+
+  // left gutter sized to the widest tick label
+  let gw = 0;
+  for (const v of nt.ticks) gw = Math.max(gw, g.measureText(fmtTick(def, v, nt.step)).width);
+  const L = Math.ceil(gw) + 8, R = 6, T = 6, B = 18;
+  const pw = W - L - R, ph = H - T - B;
+  const X = (t) => L + (t - x0) / (x1 - x0) * pw;
+  const Y = (v) => T + (1 - (v - nt.lo) / (nt.hi - nt.lo)) * ph;
+  ch.plot = {L, R, T, B, pw, ph, X, Y, x0, x1};
+
+  // grid + y labels
+  g.lineWidth = 1;
+  g.textAlign = "right"; g.textBaseline = "middle";
+  for (const v of nt.ticks) {
+    const y = Math.round(Y(v)) + 0.5;
+    g.strokeStyle = v === 0 ? css.axis : css.grid;
+    g.beginPath(); g.moveTo(L, y); g.lineTo(W - R, y); g.stroke();
+    g.fillStyle = css.muted;
+    g.fillText(fmtTick(def, v, nt.step), L - 6, y);
+  }
+  // x labels: clean wall-clock steps
+  const spanS = (x1 - x0) / 1000;
+  const stepS = [10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600].find((s) => pw / (spanS / s) >= 70) || 3600;
+  g.textAlign = "center"; g.textBaseline = "top";
+  const first = Math.ceil(x0 / (stepS * 1000)) * stepS * 1000;
+  for (let t = first; t <= x1; t += stepS * 1000) {
+    const x = X(t);
+    if (x < L + 16 || x > W - R - 16) continue;
+    const d = new Date(t);
+    const lab = stepS < 60 ? d.toLocaleTimeString([], {hour12: false})
+                           : d.toLocaleTimeString([], {hour12: false, hour: "2-digit", minute: "2-digit"});
+    g.fillStyle = css.muted; g.fillText(lab, x, H - B + 4);
+  }
+
+  g.save();
+  g.beginPath(); g.rect(L, T - 2, pw, ph + 4); g.clip();
+  // event markers
+  for (let i = i0; i < i1; i++) {
+    const rx = data[i].rx; if (!rx) continue;
+    const c = rx.track_losses ? css.critical : rx.acquisitions ? css.good : rx.acq_failures ? css.serious : rx.overflows ? css.warning : null;
+    if (!c) continue;
+    const x = Math.round(X(data[i].t)) + 0.5;
+    g.strokeStyle = c; g.globalAlpha = 0.8;
+    g.beginPath(); g.moveTo(x, T); g.lineTo(x, T + ph); g.stroke();
+    g.globalAlpha = 1;
+  }
+  // series: points sit at the middle of their second; aggregates on top of the per-RNTI lines
+  const single = series.length === 1;
+  for (const s of [...series.filter((x) => !x.agg), ...series.filter((x) => x.agg)]) {
+    const col = css[s.c];
+    const runs = []; let run = [];
+    for (let i = i0; i < i1; i++) {
+      const v = s.get(data[i]);
+      const brk = v == null || !isFinite(v) || (run.length && data[i].t - run[run.length-1][0] > GAP_MS);
+      if (brk && run.length) { runs.push(run); run = []; }
+      if (v != null && isFinite(v)) run.push([data[i].t + 500, v]);
+    }
+    if (run.length) runs.push(run);
+    for (const r of runs) {
+      if (single) {              // ~10% wash under a single series
+        g.beginPath();
+        const yb = Y(nt.lo <= 0 && nt.hi >= 0 ? 0 : nt.lo);
+        g.moveTo(X(r[0][0]), yb);
+        for (const [t, v] of r) g.lineTo(X(t), Y(v));
+        g.lineTo(X(r[r.length-1][0]), yb); g.closePath();
+        g.fillStyle = col; g.globalAlpha = 0.10; g.fill(); g.globalAlpha = 1;
+      }
+      g.beginPath();
+      r.forEach(([t, v], j) => j ? g.lineTo(X(t), Y(v)) : g.moveTo(X(t), Y(v)));
+      g.strokeStyle = col; g.lineWidth = 2; g.lineJoin = "round";
+      g.lineCap = s.dash ? "butt" : "round"; g.setLineDash(s.dash ? [6, 4] : []);
+      g.stroke(); g.setLineDash([]);
+      if (r.length === 1) {      // an isolated second still shows
+        g.beginPath(); g.arc(X(r[0][0]), Y(r[0][1]), 3, 0, 2 * Math.PI); g.fillStyle = col; g.fill();
+      }
+    }
+  }
+  g.restore();
+
+  // shared crosshair
+  if (hoverT != null && hoverT >= x0 && hoverT <= x1) {
+    const k = nearest(hoverT, i0, i1);
+    if (k >= 0) {
+      const x = Math.round(X(data[k].t + 500)) + 0.5;
+      g.strokeStyle = css.muted; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(x, T); g.lineTo(x, T + ph); g.stroke();
+      for (const s of series) {
+        const v = s.get(data[k]); if (v == null || !isFinite(v)) continue;
+        g.beginPath(); g.arc(x, Y(v), 4, 0, 2 * Math.PI);
+        g.fillStyle = css[s.c]; g.fill();
+        g.lineWidth = 2; g.strokeStyle = css.surface; g.stroke();
+      }
+    }
+  }
+}
+
+function nearest(t, i0, i1) {
+  if (i1 <= i0) return -1;
+  let k = lowerBound(t - 500);
+  k = Math.max(i0, Math.min(i1 - 1, k));
+  if (k > i0 && Math.abs(data[k-1].t + 500 - t) < Math.abs(data[k].t + 500 - t)) k--;
+  return Math.abs(data[k].t + 500 - t) <= GAP_MS ? k : -1;
+}
+
+function onHover(ch, e) {
+  const p = ch.plot; if (!p) return;
+  const r = ch.box.getBoundingClientRect();
+  const x = e.clientX - r.left;
+  if (x < p.L || x > p.L + p.pw) { hoverT = null; $("tip").style.display = "none"; scheduleRender(); return; }
+  hoverT = p.x0 + (x - p.L) / p.pw * (p.x1 - p.x0);
+  scheduleRender();
+  const [x0, x1] = viewWindow();
+  const k = nearest(hoverT, lowerBound(x0), lowerBound(x1));
+  const tip = $("tip");
+  if (k < 0) { tip.style.display = "none"; return; }
+  const m = data[k];
+  tip.replaceChildren();
+  const tl = document.createElement("div"); tl.className = "t"; tl.textContent = fmtTime(m.t) + `  (+${m.sec} s)`;
+  tip.appendChild(tl);
+  for (const s of ch.series) {
+    const v = s.get(m);
+    const row = document.createElement("div"); row.className = "row";
+    const i = document.createElement("i"); swatch(i, s);
+    const b = document.createElement("b");
+    b.textContent = v == null ? "–" : ch.def.fmt ? ch.def.fmt(v) : v.toFixed(ch.def.dec) + (ch.def.tu ?? " " + ch.def.unit);
+    const sp = document.createElement("span"); sp.textContent = s.label;
+    row.append(i, b, sp); tip.appendChild(row);
+  }
+  const rx = m.rx;
+  if (rx && (rx.acquisitions || rx.track_losses || rx.acq_failures || rx.overflows)) {
+    const ev = document.createElement("div"); ev.className = "ev";
+    ev.textContent = [rx.acquisitions && "cell acquired", rx.track_losses && "tracking lost", rx.acq_failures && "acquisition failed", rx.overflows && `${rx.overflows} overflows`].filter(Boolean).join(" · ");
+    tip.appendChild(ev);
+  }
+  tip.style.display = "block";
+  const tw = tip.offsetWidth, th = tip.offsetHeight;
+  let lx = e.clientX + 14, ly = e.clientY + 14;
+  if (lx + tw > innerWidth - 8) lx = e.clientX - tw - 14;
+  if (ly + th > innerHeight - 8) ly = e.clientY - th - 14;
+  tip.style.left = Math.max(8, lx) + "px"; tip.style.top = Math.max(8, ly) + "px";
+}
+
+// ---------------------------------------------------------------- RNTI list
+// "Active": every RNTI seen in the 10 s up to the last second in view (DCI counts and rates of that
+// second, so 0 for an RNTI that was silent in it); "Time range": totals over the visible range.
+const ACTIVE_MS = 10000;
+const cols = [
+  {k: "rnti",  label: "RNTI", cls: "l mono"},
+  {k: "nids",  label: "srcID", cls: "l mono"},
+  {k: "dl",    label: "DL"},
+  {k: "ul",    label: "UL"},
+  {k: "dl_bps",label: "DL bit/s", tput: true},
+  {k: "ul_bps",label: "UL bit/s", tput: true},
+  {k: "last",  label: "Seen", mode: "active"},
+  {k: "secs",  label: "Secs", mode: "range"},
+  {k: "last",  label: "Last", mode: "range"},
+];
+let sortK = "n", sortDir = -1, rntiMode = "active", rntiFilter = "";
+function buildHead(showTput) {
+  const tr = $("rnti-head"); tr.replaceChildren();
+  for (const c of cols) {
+    if (c.tput && !showTput) continue;
+    if (c.mode && c.mode !== rntiMode) continue;
+    const th = document.createElement("th");
+    th.textContent = c.label; th.className = c.cls || ""; th.tabIndex = 0;
+    if (c.k === sortK) th.setAttribute("aria-sort", sortDir < 0 ? "descending" : "ascending");
+    const act = () => { if (sortK === c.k) sortDir = -sortDir; else { sortK = c.k; sortDir = ["rnti","nids"].includes(c.k) ? 1 : -1; } renderTable(); };
+    th.onclick = act; th.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); act(); } };
+    tr.appendChild(th);
+  }
+}
+document.querySelectorAll("#rnti-mode button").forEach((b) => b.onclick = () => {
+  rntiMode = b.dataset.m;
+  document.querySelectorAll("#rnti-mode button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+  if (rntiMode === "active" && sortK === "secs") sortK = "n";
+  renderTable();
+});
+$("rnti-filter").oninput = (e) => { rntiFilter = e.target.value.trim().toLowerCase(); renderTable(); };
+
+function rntiRows() {
+  if (!data.length) return {rows: [], tput: false, scope: ""};
+  const [x0, x1] = viewWindow();
+  const i0 = lowerBound(x0), i1 = lowerBound(x1);
+  if (rntiMode === "active") {
+    if (i1 === 0) return {rows: [], tput: false, scope: "", total: 0};
+    const ref = data[i1-1], acc = new Map();
+    // walk back over the last 10 s of the same run (sec restarts with a new run)
+    for (let i = i1 - 1; i >= 0 && ref.t - data[i].t < ACTIVE_MS && data[i].sec <= ref.sec; i--) {
+      const m = data[i];
+      for (const r of m.rntis) {
+        let a = acc.get(r.rnti);
+        if (!a) acc.set(r.rnti, a = m === ref
+          ? {rnti: r.rnti, name: rntiName(r.rnti), nidset: new Set(), n: r.dl + r.ul, dl: r.dl, ul: r.ul, dl_bps: r.dl_bps, ul_bps: r.ul_bps, last: m.t}
+          : {rnti: r.rnti, name: rntiName(r.rnti), nidset: new Set(), n: 0, dl: 0, ul: 0, last: m.t});
+        r.nids.forEach((x) => a.nidset.add(x));
+      }
+    }
+    const rows = [...acc.values()].map((a) => ({...a, nids: [...a.nidset].sort((p, q) => p - q), stale: a.last !== ref.t, age: (ref.t - a.last) / 1000}));
+    return {rows, tput: !!ref.throughput, ref: ref.t,
+            scope: `up to +${ref.sec} s (${fmtTime(ref.t)})` + (ref.rntis_truncated ? ` · ${ref.rnti_count} in that second, list truncated` : ""),
+            total: rows.length};
+  }
+  const acc = new Map(); let T = 0, tput = false;
+  for (let i = i0; i < i1; i++) {
+    const m = data[i]; const Tm = m.frames * 0.01; T += Tm;
+    if (m.throughput) tput = true;
+    for (const r of m.rntis) {
+      let a = acc.get(r.rnti);
+      if (!a) acc.set(r.rnti, a = {rnti: r.rnti, name: rntiName(r.rnti), nidset: new Set(), n: 0, dl: 0, ul: 0, dlb: 0, ulb: 0, secs: 0, last: 0});
+      r.nids.forEach((x) => a.nidset.add(x));
+      a.dl += r.dl; a.ul += r.ul; a.n += r.dl + r.ul; a.secs++; a.last = m.t;
+      a.dlb += (r.dl_bps || 0) * Tm; a.ulb += (r.ul_bps || 0) * Tm;
+    }
+  }
+  const rows = [...acc.values()].map((a) => ({...a, nids: [...a.nidset].sort((p, q) => p - q),
+                                              dl_bps: T ? a.dlb / T : 0, ul_bps: T ? a.ulb / T : 0}));
+  return {rows, tput, scope: `last ${rangeS >= 3600 ? rangeS/3600 + " h" : rangeS/60 + " min"} (${i1 - i0} s of data)`, total: rows.length};
+}
+
+function renderTable() {
+  const {rows, tput, scope, total} = rntiRows();
+  $("rnti-scope").textContent = scope;
+  buildHead(tput);
+  let shown = rows;
+  if (rntiFilter) shown = rows.filter((r) => hex4(r.rnti).includes(rntiFilter) || String(r.rnti).includes(rntiFilter) ||
+                                             r.name.toLowerCase().includes(rntiFilter) || r.nids.some((x) => hex4(x).includes(rntiFilter) || String(x).includes(rntiFilter)));
+  shown.sort((a, b) => {
+    let va = a[sortK] ?? 0, vb = b[sortK] ?? 0;
+    if (sortK === "nids") { va = a.nids[0] ?? -1; vb = b.nids[0] ?? -1; }
+    if (va === vb) return b.last - a.last || a.rnti - b.rnti;
+    return (va < vb ? -1 : 1) * sortDir;
+  });
+  const body = $("rnti-body"); body.replaceChildren();
+  const ncol = $("rnti-head").children.length;
+  if (!shown.length) {
+    const tr = document.createElement("tr"), td = document.createElement("td");
+    td.colSpan = ncol; td.className = "empty"; td.textContent = data.length ? "No RNTIs" : "Waiting for data";
+    tr.appendChild(td); body.appendChild(tr);
+  }
+  const plotted = tputMode !== "total" && !charts.find((c) => c.def.id === "tput").panel.classList.contains("hidden");
+  for (const r of shown.slice(0, 1000)) {
+    const tr = document.createElement("tr");
+    if (r.stale) tr.className = "stale";
+    const cell = (txt, cls) => { const td = document.createElement("td"); td.textContent = txt; if (cls) td.className = cls; tr.appendChild(td); return td; };
+    const c0 = cell(hex4(r.rnti), "l mono");
+    if (plotted && rntiSlot.has(r.rnti)) {     // color of its line in the per-RNTI throughput chart
+      const sw = document.createElement("span"); sw.className = "sw"; sw.style.background = `var(--s${rntiSlot.get(r.rnti) + 3})`;
+      c0.prepend(sw);
+    }
+    const type = r.name || (r.rnti >= 0xfff0 ? "reserved" : "");
+    if (type) { const t = document.createElement("span"); t.className = "tag"; t.textContent = type; c0.appendChild(t); }
+    cell(r.nids.map(hex4).join(", "), "l mono wrap");
+    cell(r.dl.toLocaleString()); cell(r.ul.toLocaleString());
+    if (tput) { cell(r.dl_bps ? compact(r.dl_bps) : "–"); cell(r.ul_bps ? compact(r.ul_bps) : "–"); }
+    if (rntiMode === "active") cell(r.age ? `${r.age.toFixed(0)} s` : "now");
+    else { cell(String(r.secs)); cell(fmtTime(r.last)); }
+    body.appendChild(tr);
+  }
+  $("rnti-count").textContent = rntiFilter ? `${shown.length} of ${total}` : `${total} RNTIs`;
+}
+
+// ---------------------------------------------------------------- events list
+let eventsDirty = true;
+function renderEvents() {
+  if (!eventsDirty) return; eventsDirty = false;
+  const ul = $("events"); ul.replaceChildren();
+  if (!events.length) { const li = document.createElement("li"); li.className = "empty"; li.textContent = "No events yet"; ul.appendChild(li); return; }
+  for (const ev of events.slice(-200).reverse()) {
+    const li = document.createElement("li");
+    const t = document.createElement("span"); t.className = "t"; t.textContent = fmtTime(ev.t);
+    const d = document.createElement("span"); d.className = "dot"; d.style.background = css[ev.kind] || css.muted;
+    const x = document.createElement("span"); x.textContent = ev.text;
+    li.append(t, d, x); ul.appendChild(li);
+  }
+}
+
+// ---------------------------------------------------------------- render loop
+let pending = false;
+function scheduleRender() { if (!pending) { pending = true; requestAnimationFrame(render); } }
+function render() {
+  pending = false;
+  const m = data.length ? data[data.length-1] : null;
+  if (m) $("meta").textContent = describeCfg(m.cfg);
+  const tput = data.some((x) => x.throughput);
+  charts.find((c) => c.def.id === "tput").panel.classList.toggle("hidden", !tput);
+  $("charts").classList.toggle("no-tput", !tput);
+  const [x0, x1] = viewWindow();
+  const i0 = lowerBound(x0), i1 = lowerBound(x1);
+  for (const ch of charts) {
+    if (ch.panel.classList.contains("hidden")) continue;
+    if (ch.def.modes) ch.series = tputMode === "total" ? staticSeries(ch.def) : perRntiSeries(i0, i1, tputMode);
+    setKeys(ch);
+    drawChart(ch, x0, x1, i0, i1);
+  }
+  renderTiles();
+  if (!hoverT) renderTable();     // don't reshuffle the table under the pointer while inspecting charts
+  renderEvents();
+  $("clock").textContent = paused ? "paused at " + fmtTime(x1) : m ? "updated " + fmtTime(m.t) : "";
+}
+
+// ---------------------------------------------------------------- controls
+document.querySelectorAll("#range button").forEach((b) => b.onclick = () => {
+  rangeS = +b.dataset.s;
+  document.querySelectorAll("#range button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+  scheduleRender();
+});
+$("pause").onclick = () => {
+  paused = !paused;
+  frozenEnd = paused ? viewWindow()[1] : null;
+  $("pause").setAttribute("aria-pressed", paused);
+  $("pause").textContent = paused ? "Resume" : "Pause";
+  scheduleRender();
+};
+
+// ---------------------------------------------------------------- connection
+function setConn(state, text) {
+  const c = $("conn");
+  c.querySelector(".dot").style.background = css[state] || css.muted;
+  c.querySelector("span:last-child").textContent = text;
+}
+function connect() {
+  const es = new EventSource("events");
+  es.addEventListener("history", (e) => {
+    const arr = JSON.parse(e.data);
+    if (data.length === 0) { for (const m of arr) ingest(m, false); }
+    else for (const m of arr) if (m.t > data[data.length-1].t) ingest(m, false);
+    if (arr.length && Date.now() - arr[arr.length-1].t < 5000) lastRecv = Date.now();
+    scheduleRender();
+  });
+  es.onmessage = (e) => { ingest(JSON.parse(e.data), true); scheduleRender(); };
+  es.onopen = () => setConn("good", "connected");
+  es.onerror = () => setConn("critical", "bridge unreachable, retrying");
+}
+setInterval(() => {             // stale-stream indicator, independent of the bridge connection
+  const c = $("conn").querySelector("span:last-child").textContent;
+  if (c !== "bridge unreachable, retrying")
+    setConn(Date.now() - lastRecv < 3000 ? "good" : "warning", Date.now() - lastRecv < 3000 ? "live" : "connected, no data from scanner");
+  renderTiles();
+}, 1000);
+// ---------------------------------------------------------------- user images
+// each slot shows its default image (a.png, b.png, c.png served by server.py) or, if missing, a file picker
+// until an image is chosen; clicking the image picks another
+document.querySelectorAll("#images .slot").forEach((slot) => {
+  const input = slot.querySelector("input"), pick = slot.querySelector(".pick");
+  const img = document.createElement("img");
+  img.title = "Click to choose another image";
+  img.hidden = true;
+  img.onclick = () => input.click();
+  img.onload = () => { img.hidden = false; pick.hidden = true; };
+  slot.appendChild(img);
+  img.alt = slot.dataset.default;
+  img.src = slot.dataset.default;
+  input.onchange = () => {
+    const f = input.files[0];
+    if (!f) return;
+    if (img.src.startsWith("blob:")) URL.revokeObjectURL(img.src);
+    img.alt = f.name;
+    img.src = URL.createObjectURL(f);
+  };
+});
+
+connect();
+scheduleRender();
+</script>
+</body>
+</html>
