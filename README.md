@@ -71,9 +71,6 @@ flowchart LR
     ACQ["SSB search worker<br/>+ helper pool"] <--> RX
 ```
 
-See the [architecture pages](https://5g-goldensniffer.github.io/5G-GoldenSniffer-cpp/architecture/) for the
-details.
-
 ## Requirements
 
 - Linux and a C++17 compiler (`g++`)
