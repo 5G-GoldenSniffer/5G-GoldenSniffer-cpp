@@ -13,14 +13,12 @@ aggregation level and the payload size. It also detects TRS and other NZP-CSI-RS
 
 | | |
 |:--|:--|
-| UE DCIs detected, 75 srsRAN captures scored against the gNB logs | **99.79 %** (99.996 % once locked) |
-| False detections | **0** |
-| Recordings without ground truth where the cell was locked and the MIB decoded | **109 / 109** |
+| UE DCIs detected on the Zenodo dataset, scored against the gNB logs | **99.79 %** (99.996 % once locked) |
 | Speed, 20 MHz cell | about **15×** real time |
 | Speed, 80 MHz commercial n78 carrier | about **2.7×** real time |
 
-**Documentation:** <https://5g-goldensniffer.github.io/5G-GoldenSniffer-cpp/> ·
-**Technical report:** [*A Real-Time Passive 5G NR Downlink Control Channel Sniffer*](report/report.pdf)
+**Documentation:** <https://5g-goldensniffer.github.io/5G-GoldenSniffer/> ·
+**Zenodo dataset:** <https://zenodo.org/records/21678295> .
 
 ---
 
